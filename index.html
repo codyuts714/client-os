@@ -101,6 +101,22 @@ body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSyste
 .rc-stage.rc-done .rc-stage-label{color:var(--green);}
 
 .rc-empty{font-size:12px;color:var(--t3);padding:8px 0;}
+.rc-row{display:flex;gap:8px;}
+.rc-clock-active{background:rgba(91,141,238,.1);border:1px solid var(--blue);border-radius:8px;padding:10px 12px;margin-bottom:8px;}
+.rc-clock-active-time{font-size:18px;font-weight:800;color:var(--blue);font-variant-numeric:tabular-nums;}
+.rc-clock-active-label{font-size:11px;color:var(--t2);margin-top:2px;}
+.rc-time-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--b);gap:10px;}
+.rc-time-row:last-child{border-bottom:none;}
+.rc-time-info{flex:1;min-width:0;}
+.rc-time-note{font-size:12px;color:var(--t);}
+.rc-time-meta{font-size:10px;color:var(--t3);margin-top:2px;}
+.rc-time-dur{font-size:13px;font-weight:700;color:var(--y);white-space:nowrap;}
+.rc-addon-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--b);gap:10px;}
+.rc-addon-row:last-child{border-bottom:none;}
+.rc-addon-info{flex:1;}
+.rc-addon-label{font-size:13px;color:var(--t);}
+.rc-addon-date{font-size:10px;color:var(--t3);margin-top:2px;}
+.rc-addon-amt{font-size:14px;font-weight:700;color:var(--orange);white-space:nowrap;}
 .rc-inspo-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--b);}
 .rc-inspo-row:last-child{border-bottom:none;}
 .rc-inspo-link{flex:1;font-size:13px;color:var(--blue);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -172,6 +188,25 @@ body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSyste
 
     <div class="rc-card">
       <div class="rc-card-hd">
+        <div class="rc-card-title"><span class="rc-dot" style="background:var(--blue)"></span>Time Tracker</div>
+        <div id="rcClockStatus"></div>
+      </div>
+      <div id="rcClockActiveWrap"></div>
+      <div class="rc-row" style="margin-top:8px;">
+        <button class="rc-btn rc-btn-y" id="rcClockInBtn" style="flex:1;">▶ Punch In</button>
+        <button class="rc-btn rc-btn-ghost" id="rcAddTimeManualBtn" style="flex:1;">+ Add Past Entry</button>
+      </div>
+      <div style="margin-top:12px;border-top:1px solid var(--b);padding-top:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;">This month's hours</span>
+          <span style="font-size:16px;font-weight:800;color:var(--y);" id="rcTimeTotal">0h 0m</span>
+        </div>
+        <div id="rcTimeLogList"></div>
+      </div>
+    </div>
+
+    <div class="rc-card">
+      <div class="rc-card-hd">
         <div class="rc-card-title"><span class="rc-dot" style="background:var(--y)"></span>Monthly Deliverables</div>
         <button class="rc-btn rc-btn-ghost rc-btn-sm" id="rcAddDelivBtn">+ Add</button>
       </div>
@@ -204,6 +239,18 @@ body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSyste
         <button class="rc-btn rc-btn-ghost rc-btn-sm" id="rcAddInspoBtn">+ Add Link</button>
       </div>
       <div id="rcInspoList"></div>
+    </div>
+
+    <div class="rc-card">
+      <div class="rc-card-hd">
+        <div class="rc-card-title"><span class="rc-dot" style="background:var(--orange)"></span>Add-Ons This Month</div>
+        <button class="rc-btn rc-btn-ghost rc-btn-sm" id="rcAddAddonBtn">+ Add</button>
+      </div>
+      <div id="rcAddonList"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;border-top:1px solid var(--b);padding-top:10px;">
+        <span style="font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;">Add-on total</span>
+        <span style="font-size:16px;font-weight:800;color:var(--y);" id="rcAddonTotal">$0</span>
+      </div>
     </div>
 
     <div style="text-align:right;">
@@ -310,6 +357,10 @@ function rcTodayStr(){
 function rcMonthLabel(){
   return new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'});
 }
+function rcMonthKey(){
+  var d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
 
 var RC_DEFAULTS=[{
   id:'cl_cindy_gallo', name:'Cindy Gallo', amount:0, start:'', due:'', shoot:'', projectNote:'',
@@ -326,6 +377,9 @@ var RC_DEFAULTS=[{
   logins:[],
   libraryUrl:'https://www.dropbox.com/scl/fo/gsbnnxkflr8vmx62urn82/AIxVA4q4_VyCL0iNCut1dq4?rlkey=avc5ul8tnjgapo61dqb68gb1f&st=8xh1xtal&dl=0',
   inspirationLinks:[],
+  timeLog:[],
+  activeClock:null,
+  addons:[],
   stages:{deposit:{done:false,date:''},final:{done:false,date:''}}
 }];
 
@@ -342,12 +396,16 @@ function rcSaveClients(){rcSv('rcClients',rcClients);}
 
 function rcCalcProgress(c){
   var total=c.deliverables.length;
-  if(!total)return{done:0,total:0,pct:0};
-  var done=c.deliverables.filter(function(d){
-    return d.status==='complete'||d.scheduled;
-  }).length;
-  var pct=Math.round(done/total*100);
-  return{done:done,total:total,pct:pct};
+  if(!total)return{done:0,total:0,pct:0,points:0,maxPoints:0};
+  var points=0;
+  c.deliverables.forEach(function(d){
+    if(d.status==='complete')points+=0.5;
+    if(d.scheduled)points+=0.5;
+  });
+  var maxPoints=total;
+  var pct=Math.round(points/maxPoints*100);
+  var fullyDone=c.deliverables.filter(function(d){return d.status==='complete'&&d.scheduled;}).length;
+  return{done:fullyDone,total:total,pct:pct,points:points,maxPoints:maxPoints};
 }
 
 function rcRenderList(){
@@ -376,7 +434,7 @@ function rcRenderList(){
     nameRow.style.display='flex';nameRow.style.alignItems='baseline';nameRow.style.gap='8px';nameRow.style.flexWrap='wrap';
     var left=rcEl('div',{},[
       nameRow,
-      rcEl('div',{class:'rc-client-sub',text:rcMonthLabel()+' — '+prog.done+'/'+prog.total+' deliverables'})
+      rcEl('div',{class:'rc-client-sub',text:rcMonthLabel()+' — '+prog.points+'/'+prog.maxPoints+' deliverable points'})
     ]);
     var pctEl=rcEl('div',{text:prog.pct+'%'});
     pctEl.style.fontSize='18px';pctEl.style.fontWeight='800';pctEl.style.color='var(--y)';
@@ -423,7 +481,9 @@ document.getElementById('rcAddClientBtn').addEventListener('click',function(){
   var deliverables=rcParseDeliverables(delivInput);
   rcClients.push({
     id:'cl'+Date.now(),name:name.trim(),amount:0,start:'',due:'',shoot:'',projectNote:'',
-    deliverables:deliverables,logins:[],libraryUrl:'',inspirationLinks:[],stages:{deposit:{done:false,date:''},final:{done:false,date:''}}
+    deliverables:deliverables,logins:[],libraryUrl:'',inspirationLinks:[],
+    timeLog:[],activeClock:null,addons:[],
+    stages:{deposit:{done:false,date:''},final:{done:false,date:''}}
   });
   rcSaveClients();
   rcRenderList();
@@ -437,6 +497,7 @@ function rcOpenDetail(id){
 }
 function rcCloseDetail(){
   rcCurrentId=null;
+  if(rcClockInterval){clearInterval(rcClockInterval);rcClockInterval=null;}
   document.getElementById('rcListView').style.display='block';
   document.getElementById('rcDetailView').style.display='none';
 }
@@ -452,7 +513,7 @@ function rcUpdateDetailProgress(){
   var lbl=document.getElementById('rcDetailProgressLabel');
   var pctEl=document.getElementById('rcDetailProgressPct');
   var fill=document.getElementById('rcDetailProgressFill');
-  if(lbl)lbl.textContent=prog.done+'/'+prog.total+' deliverables done or scheduled';
+  if(lbl)lbl.textContent=prog.points+'/'+prog.maxPoints+' deliverable points (complete + scheduled)';
   if(pctEl)pctEl.textContent=prog.pct+'%';
   if(fill)fill.style.width=prog.pct+'%';
 }
@@ -473,6 +534,8 @@ function rcRenderDetail(){
   rcRenderLibBtn();
   rcRenderStages();
   rcRenderInspo();
+  rcRenderTimeTracker();
+  rcRenderAddons();
 }
 
 function rcSaveField(field,value){
@@ -751,6 +814,189 @@ document.getElementById('rcAddInspoBtn').addEventListener('click',function(){
   c.inspirationLinks.push({id:'i'+Date.now(),url:url.trim(),label:label?label.trim():''});
   rcSaveClients();
   rcRenderInspo();
+});
+
+// -- TIME TRACKER ----------------------------------------------------------────
+var rcClockInterval=null;
+
+function rcMonthKeyFor(dateStr){
+  return dateStr.slice(0,7); // "YYYY-MM"
+}
+function rcFmtDuration(mins){
+  var h=Math.floor(mins/60);
+  var m=Math.round(mins%60);
+  return h+'h '+m+'m';
+}
+function rcFmtTimeShort(iso){
+  var d=new Date(iso);
+  return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+}
+function rcFmtDateShort(iso){
+  var d=new Date(iso);
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+
+function rcRenderTimeTracker(){
+  var c=rcGetClient(rcCurrentId);
+  if(!c.timeLog)c.timeLog=[];
+  if(!c.activeClock)c.activeClock=null;
+
+  var statusEl=document.getElementById('rcClockStatus');
+  var activeWrap=document.getElementById('rcClockActiveWrap');
+  var inBtn=document.getElementById('rcClockInBtn');
+
+  if(rcClockInterval){clearInterval(rcClockInterval);rcClockInterval=null;}
+
+  if(c.activeClock){
+    statusEl.innerHTML='';
+    inBtn.textContent='⏹ Punch Out';
+    inBtn.className='rc-btn rc-btn-y';
+    activeWrap.innerHTML='';
+    var box=rcEl('div',{class:'rc-clock-active'});
+    var timeEl=rcEl('div',{class:'rc-clock-active-time',id:'rcLiveTimer'});
+    box.appendChild(timeEl);
+    box.appendChild(rcEl('div',{class:'rc-clock-active-label',text:'Started '+rcFmtTimeShort(c.activeClock.start)}));
+    activeWrap.appendChild(box);
+
+    function tick(){
+      var elapsed=(Date.now()-new Date(c.activeClock.start).getTime())/60000;
+      var h=Math.floor(elapsed/60);
+      var m=Math.floor(elapsed%60);
+      var s=Math.floor((elapsed*60)%60);
+      var el=document.getElementById('rcLiveTimer');
+      if(el)el.textContent=h+'h '+m+'m '+s+'s';
+    }
+    tick();
+    rcClockInterval=setInterval(tick,1000);
+  }else{
+    activeWrap.innerHTML='';
+    inBtn.textContent='▶ Punch In';
+    inBtn.className='rc-btn rc-btn-y';
+  }
+
+  // Render this month's log
+  var mk=rcMonthKey();
+  var entries=c.timeLog.filter(function(e){return rcMonthKeyFor(e.start)===mk;});
+  var totalMins=entries.reduce(function(sum,e){return sum+e.durationMins;},0);
+  document.getElementById('rcTimeTotal').textContent=rcFmtDuration(totalMins);
+
+  var logWrap=document.getElementById('rcTimeLogList');
+  logWrap.innerHTML='';
+  if(!entries.length){
+    logWrap.appendChild(rcEl('div',{class:'rc-empty',text:'No time logged yet this month.'}));
+    return;
+  }
+  entries.slice().sort(function(a,b){return b.start.localeCompare(a.start);}).forEach(function(e){
+    var row=rcEl('div',{class:'rc-time-row'});
+    var info=rcEl('div',{class:'rc-time-info'});
+    info.appendChild(rcEl('div',{class:'rc-time-note',text:e.note||'(no note)'}));
+    info.appendChild(rcEl('div',{class:'rc-time-meta',text:rcFmtDateShort(e.start)+' · '+rcFmtTimeShort(e.start)+' – '+rcFmtTimeShort(e.end)}));
+    row.appendChild(info);
+    row.appendChild(rcEl('div',{class:'rc-time-dur',text:rcFmtDuration(e.durationMins)}));
+    var delBtn=rcEl('button',{class:'rc-del-x',text:'×'});
+    delBtn.addEventListener('click',function(){
+      c.timeLog=c.timeLog.filter(function(x){return x.id!==e.id;});
+      rcSaveClients();
+      rcRenderTimeTracker();
+    });
+    row.appendChild(delBtn);
+    logWrap.appendChild(row);
+  });
+}
+
+document.getElementById('rcClockInBtn').addEventListener('click',function(){
+  var c=rcGetClient(rcCurrentId);
+  if(!c.timeLog)c.timeLog=[];
+  if(c.activeClock){
+    // Punch out
+    var note=prompt('What did you work on?')||'';
+    var end=new Date().toISOString();
+    var durationMins=(new Date(end)-new Date(c.activeClock.start))/60000;
+    c.timeLog.push({id:'t'+Date.now(),start:c.activeClock.start,end:end,durationMins:durationMins,note:note.trim()});
+    c.activeClock=null;
+  }else{
+    // Punch in
+    c.activeClock={start:new Date().toISOString()};
+  }
+  rcSaveClients();
+  rcRenderTimeTracker();
+});
+
+document.getElementById('rcAddTimeManualBtn').addEventListener('click',function(){
+  var c=rcGetClient(rcCurrentId);
+  if(!c.timeLog)c.timeLog=[];
+  var dateStr=prompt('Date (YYYY-MM-DD):',rcTodayStr());
+  if(!dateStr)return;
+  var startTime=prompt('Start time (e.g. 9:00 AM):');
+  if(!startTime)return;
+  var endTime=prompt('End time (e.g. 10:30 AM):');
+  if(!endTime)return;
+  var note=prompt('What did you work on?')||'';
+
+  var startISO=rcParseDateTime(dateStr,startTime);
+  var endISO=rcParseDateTime(dateStr,endTime);
+  if(!startISO||!endISO){alert('Could not parse those times — try a format like "9:00 AM".');return;}
+  var durationMins=(new Date(endISO)-new Date(startISO))/60000;
+  if(durationMins<=0){alert('End time must be after start time.');return;}
+
+  c.timeLog.push({id:'t'+Date.now(),start:startISO,end:endISO,durationMins:durationMins,note:note.trim()});
+  rcSaveClients();
+  rcRenderTimeTracker();
+});
+
+function rcParseDateTime(dateStr,timeStr){
+  try{
+    var d=new Date(dateStr+' '+timeStr);
+    if(isNaN(d.getTime()))return null;
+    return d.toISOString();
+  }catch(e){return null;}
+}
+
+// -- ADD-ONS ------------------------------------------------------------────────
+function rcRenderAddons(){
+  var c=rcGetClient(rcCurrentId);
+  if(!c.addons)c.addons=[];
+  var mk=rcMonthKey();
+  var monthAddons=c.addons.filter(function(a){return a.month===mk;});
+
+  var wrap=document.getElementById('rcAddonList');
+  wrap.innerHTML='';
+  var total=0;
+  if(!monthAddons.length){
+    wrap.appendChild(rcEl('div',{class:'rc-empty',text:'No add-ons logged this month.'}));
+  }else{
+    monthAddons.forEach(function(a){
+      total+=a.amount;
+      var row=rcEl('div',{class:'rc-addon-row'});
+      var info=rcEl('div',{class:'rc-addon-info'});
+      info.appendChild(rcEl('div',{class:'rc-addon-label',text:a.label}));
+      info.appendChild(rcEl('div',{class:'rc-addon-date',text:rcFmtDateShort(a.date)}));
+      row.appendChild(info);
+      row.appendChild(rcEl('div',{class:'rc-addon-amt',text:'$'+a.amount.toLocaleString()}));
+      var delBtn=rcEl('button',{class:'rc-del-x',text:'×'});
+      delBtn.addEventListener('click',function(){
+        c.addons=c.addons.filter(function(x){return x.id!==a.id;});
+        rcSaveClients();
+        rcRenderAddons();
+      });
+      row.appendChild(delBtn);
+      wrap.appendChild(row);
+    });
+  }
+  document.getElementById('rcAddonTotal').textContent='$'+total.toLocaleString();
+}
+
+document.getElementById('rcAddAddonBtn').addEventListener('click',function(){
+  var label=prompt('What was added? (e.g. "Extra reel edit")');
+  if(!label||!label.trim())return;
+  var amountStr=prompt('Amount ($):');
+  var amount=parseFloat(amountStr);
+  if(isNaN(amount)||amount<=0)return;
+  var c=rcGetClient(rcCurrentId);
+  if(!c.addons)c.addons=[];
+  c.addons.push({id:'ad'+Date.now(),label:label.trim(),amount:amount,date:rcTodayStr(),month:rcMonthKey()});
+  rcSaveClients();
+  rcRenderAddons();
 });
 
 function rcReload(){
