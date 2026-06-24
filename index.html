@@ -163,6 +163,11 @@ body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSyste
         <div class="rc-date-item"><span class="rc-date-lbl">Due</span><input class="rc-inp" id="rcDueInput" type="date"></div>
         <div class="rc-date-item"><span class="rc-date-lbl">Next shoot</span><input class="rc-inp" id="rcShootInput" type="date"></div>
       </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
+        <span style="font-size:11px;color:var(--t2);" id="rcDetailProgressLabel"></span>
+        <span style="font-size:14px;font-weight:800;color:var(--y);" id="rcDetailProgressPct"></span>
+      </div>
+      <div class="rc-progress-track"><div class="rc-progress-fill" id="rcDetailProgressFill" style="width:0%"></div></div>
     </div>
 
     <div class="rc-card">
@@ -271,16 +276,22 @@ window.rcSyncFromCloud = function() {
         } catch(e) {}
       }
     });
-    if(changed && window.rcReload) window.rcReload();
+    const activeTag = document.activeElement ? document.activeElement.tagName : '';
+    const isTyping = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
+    if(changed && !isTyping && window.rcReload) window.rcReload();
   }, (err) => { console.warn('Firestore listener error:', err); });
 };
 </script>
 
 <script>
 function rcLd(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
+var rcDebounceTimers={};
 function rcSv(k,v){
   try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}
-  if(window.rcSvCloud)window.rcSvCloud(k,v);
+  if(rcDebounceTimers[k])clearTimeout(rcDebounceTimers[k]);
+  rcDebounceTimers[k]=setTimeout(function(){
+    if(window.rcSvCloud)window.rcSvCloud(k,v);
+  },600);
 }
 function rcEl(tag,props,children){
   var e=document.createElement(tag);
@@ -329,6 +340,16 @@ var rcCurrentId=null;
 function rcGetClient(id){return rcClients.find(function(c){return c.id===id;});}
 function rcSaveClients(){rcSv('rcClients',rcClients);}
 
+function rcCalcProgress(c){
+  var total=c.deliverables.length;
+  if(!total)return{done:0,total:0,pct:0};
+  var done=c.deliverables.filter(function(d){
+    return d.status==='complete'||d.scheduled;
+  }).length;
+  var pct=Math.round(done/total*100);
+  return{done:done,total:total,pct:pct};
+}
+
 function rcRenderList(){
   var wrap=document.getElementById('rcClientList');
   wrap.innerHTML='';
@@ -344,9 +365,7 @@ function rcRenderList(){
     return;
   }
   rcClients.forEach(function(c){
-    var done=c.deliverables.filter(function(d){return d.status==='complete';}).length;
-    var total=c.deliverables.length;
-    var pct=total?Math.round(done/total*100):0;
+    var prog=rcCalcProgress(c);
 
     var card=rcEl('div',{class:'rc-client-card'});
     var top=rcEl('div',{class:'rc-client-top'});
@@ -357,15 +376,15 @@ function rcRenderList(){
     nameRow.style.display='flex';nameRow.style.alignItems='baseline';nameRow.style.gap='8px';nameRow.style.flexWrap='wrap';
     var left=rcEl('div',{},[
       nameRow,
-      rcEl('div',{class:'rc-client-sub',text:rcMonthLabel()+' — '+done+'/'+total+' deliverables'})
+      rcEl('div',{class:'rc-client-sub',text:rcMonthLabel()+' — '+prog.done+'/'+prog.total+' deliverables'})
     ]);
-    var pctEl=rcEl('div',{text:pct+'%'});
+    var pctEl=rcEl('div',{text:prog.pct+'%'});
     pctEl.style.fontSize='18px';pctEl.style.fontWeight='800';pctEl.style.color='var(--y)';
     top.appendChild(left);top.appendChild(pctEl);
     card.appendChild(top);
     var track=rcEl('div',{class:'rc-progress-track'});
     var fill=rcEl('div',{class:'rc-progress-fill'});
-    fill.style.width=pct+'%';
+    fill.style.width=prog.pct+'%';
     track.appendChild(fill);
     card.appendChild(track);
     card.addEventListener('click',function(){rcOpenDetail(c.id);});
@@ -426,6 +445,18 @@ document.getElementById('rcBackBtn').addEventListener('click',function(){
   rcRenderList();
 });
 
+function rcUpdateDetailProgress(){
+  var c=rcGetClient(rcCurrentId);
+  if(!c)return;
+  var prog=rcCalcProgress(c);
+  var lbl=document.getElementById('rcDetailProgressLabel');
+  var pctEl=document.getElementById('rcDetailProgressPct');
+  var fill=document.getElementById('rcDetailProgressFill');
+  if(lbl)lbl.textContent=prog.done+'/'+prog.total+' deliverables done or scheduled';
+  if(pctEl)pctEl.textContent=prog.pct+'%';
+  if(fill)fill.style.width=prog.pct+'%';
+}
+
 function rcRenderDetail(){
   var c=rcGetClient(rcCurrentId);
   if(!c)return;
@@ -436,6 +467,7 @@ function rcRenderDetail(){
   document.getElementById('rcDueInput').value=c.due||'';
   document.getElementById('rcShootInput').value=c.shoot||'';
   document.getElementById('rcMonthPill').textContent=rcMonthLabel();
+  rcUpdateDetailProgress();
   rcRenderDeliverables();
   rcRenderLogins();
   rcRenderLibBtn();
@@ -507,6 +539,7 @@ function rcRenderDeliverables(){
       this.className='rc-status-sel rc-s-'+this.value;
       rcSaveClients();
       rcRenderList();
+      rcUpdateDetailProgress();
     });
     top.appendChild(sel);
 
@@ -518,6 +551,8 @@ function rcRenderDeliverables(){
       toggle.className='rc-toggle'+(d.scheduled?' rc-on':'');
       schedLabel.textContent=d.scheduled?'Scheduled':'Unscheduled';
       rcSaveClients();
+      rcRenderList();
+      rcUpdateDetailProgress();
     });
     top.appendChild(toggle);
     top.appendChild(schedLabel);
@@ -528,6 +563,7 @@ function rcRenderDeliverables(){
       rcSaveClients();
       rcRenderDeliverables();
       rcRenderList();
+      rcUpdateDetailProgress();
     });
     top.appendChild(delBtn);
     card.appendChild(top);
@@ -550,6 +586,7 @@ document.getElementById('rcAddDelivBtn').addEventListener('click',function(){
   rcSaveClients();
   rcRenderDeliverables();
   rcRenderList();
+  rcUpdateDetailProgress();
 });
 
 function rcRenderLogins(){
