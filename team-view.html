@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0a0a0a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Client OS</title>
+<title>Client OS — Team View</title>
 <link rel="manifest" href="manifest.json">
 <style>
 :root {
@@ -152,13 +152,8 @@ body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSyste
 
   <div id="rcListView">
     <div class="rc-card" id="rcSummaryCard" style="margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;">Monthly retainer value</div>
-          <div style="font-size:11px;color:var(--t3);margin-top:2px;" id="rcSummaryCount"></div>
-        </div>
-        <div style="font-size:26px;font-weight:800;color:var(--y);" id="rcSummaryTotal">$0</div>
-      </div>
+      <div style="font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;">Active Clients</div>
+      <div style="font-size:26px;font-weight:800;color:var(--y);margin-top:2px;" id="rcSummaryCount"></div>
     </div>
     <div class="rc-card-hd" style="margin-bottom:10px;">
       <div class="rc-card-title" style="font-size:14px;color:var(--t);"><span class="rc-dot" style="background:var(--y)"></span>Retainer Clients</div>
@@ -182,12 +177,8 @@ body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSyste
         <input class="rc-inp" id="rcNameInput" style="font-size:17px;font-weight:700;border:none;background:none;padding:2px 0;flex:1;">
         <div class="rc-month-pill" id="rcMonthPill"></div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-        <span style="font-size:12px;color:var(--t2);">$</span>
-        <input class="rc-inp" id="rcAmountInput" type="number" style="width:90px;">
-        <span style="font-size:10px;color:var(--t3);">/month</span>
-      </div>
-      <div class="rc-dates-row">
+      <input class="rc-inp" id="rcAmountInput" type="number" style="display:none;">
+      <div class="rc-dates-row" style="margin-top:8px;">
         <div class="rc-date-item"><span class="rc-date-lbl">Start</span><input class="rc-inp" id="rcStartInput" type="date"></div>
         <div class="rc-date-item"><span class="rc-date-lbl">Due</span><input class="rc-inp" id="rcDueInput" type="date"></div>
         <div class="rc-date-item"><span class="rc-date-lbl">Next shoot</span><input class="rc-inp" id="rcShootInput" type="date"></div>
@@ -247,10 +238,7 @@ body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSyste
           <div class="rc-card-title"><span class="rc-dot" style="background:var(--coral)"></span>Content Library</div>
         </div>
         <div id="rcLibBtnWrap"></div>
-        <div style="margin-top:14px;">
-          <div class="rc-card-title" style="margin-bottom:8px;"><span class="rc-dot" style="background:var(--green)"></span>This Month's Payment</div>
-          <div id="rcStagesWrap"></div>
-        </div>
+        <span style="display:none;" id="rcStagesWrap"></span>
       </div>
     </div>
 
@@ -260,18 +248,6 @@ body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSyste
         <button class="rc-btn rc-btn-ghost rc-btn-sm" id="rcAddInspoBtn">+ Add Link</button>
       </div>
       <div id="rcInspoList"></div>
-    </div>
-
-    <div class="rc-card">
-      <div class="rc-card-hd">
-        <div class="rc-card-title"><span class="rc-dot" style="background:var(--orange)"></span>Add-Ons This Month</div>
-        <button class="rc-btn rc-btn-ghost rc-btn-sm" id="rcAddAddonBtn">+ Add</button>
-      </div>
-      <div id="rcAddonList"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;border-top:1px solid var(--b);padding-top:10px;">
-        <span style="font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;">Add-on total</span>
-        <span style="font-size:16px;font-weight:800;color:var(--y);" id="rcAddonTotal">$0</span>
-      </div>
     </div>
 
     <div style="text-align:right;">
@@ -598,7 +574,6 @@ function rcRenderDetail(){
   rcRenderStages();
   rcRenderInspo();
   rcRenderTimeTracker();
-  rcRenderAddons();
 }
 
 function rcSaveField(field,value){
@@ -706,18 +681,7 @@ function rcRenderArchiveDetail(mk){
     wrap.appendChild(totalRow);
   }
 
-  // Add-ons snapshot
-  if(snap.addons&&snap.addons.length){
-    var addonLabel=rcEl('div',{text:'Add-ons'});
-    addonLabel.style.fontSize='11px';addonLabel.style.color='var(--t2)';addonLabel.style.textTransform='uppercase';addonLabel.style.letterSpacing='.05em';addonLabel.style.margin='12px 0 6px';
-    wrap.appendChild(addonLabel);
-    snap.addons.forEach(function(a){
-      var row=rcEl('div',{class:'rc-archive-deliv-row'});
-      row.appendChild(rcEl('span',{text:a.label,style:'flex:1;'}));
-      if(a.amount)row.appendChild(rcEl('span',{text:'$'+a.amount.toLocaleString(),style:'color:var(--orange);font-weight:700;'}));
-      wrap.appendChild(row);
-    });
-  }
+  // Add-ons snapshot (team view: no add-ons tracked, skip)
 }
 
 function rcRenderDeliverables(){
@@ -1110,53 +1074,6 @@ function rcParseDateTime(dateStr,timeStr){
     return d.toISOString();
   }catch(e){return null;}
 }
-
-// -- ADD-ONS ------------------------------------------------------------────────
-function rcRenderAddons(){
-  var c=rcGetClient(rcCurrentId);
-  if(!c.addons)c.addons=[];
-  var mk=rcMonthKey();
-  var monthAddons=c.addons.filter(function(a){return a.month===mk;});
-
-  var wrap=document.getElementById('rcAddonList');
-  wrap.innerHTML='';
-  var total=0;
-  if(!monthAddons.length){
-    wrap.appendChild(rcEl('div',{class:'rc-empty',text:'No add-ons logged this month.'}));
-  }else{
-    monthAddons.forEach(function(a){
-      total+=a.amount;
-      var row=rcEl('div',{class:'rc-addon-row'});
-      var info=rcEl('div',{class:'rc-addon-info'});
-      info.appendChild(rcEl('div',{class:'rc-addon-label',text:a.label}));
-      info.appendChild(rcEl('div',{class:'rc-addon-date',text:rcFmtDateShort(a.date)}));
-      row.appendChild(info);
-      row.appendChild(rcEl('div',{class:'rc-addon-amt',text:'$'+a.amount.toLocaleString()}));
-      var delBtn=rcEl('button',{class:'rc-del-x',text:'×'});
-      delBtn.addEventListener('click',function(){
-        c.addons=c.addons.filter(function(x){return x.id!==a.id;});
-        rcSaveClients();
-        rcRenderAddons();
-      });
-      row.appendChild(delBtn);
-      wrap.appendChild(row);
-    });
-  }
-  document.getElementById('rcAddonTotal').textContent='$'+total.toLocaleString();
-}
-
-document.getElementById('rcAddAddonBtn').addEventListener('click',function(){
-  var label=prompt('What was added? (e.g. "Extra reel edit")');
-  if(!label||!label.trim())return;
-  var amountStr=prompt('Amount ($):');
-  var amount=parseFloat(amountStr);
-  if(isNaN(amount)||amount<=0)return;
-  var c=rcGetClient(rcCurrentId);
-  if(!c.addons)c.addons=[];
-  c.addons.push({id:'ad'+Date.now(),label:label.trim(),amount:amount,date:rcTodayStr(),month:rcMonthKey()});
-  rcSaveClients();
-  rcRenderAddons();
-});
 
 function rcReload(){
   rcClients=rcLd('rcClients',RC_DEFAULTS);
