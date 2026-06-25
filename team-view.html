@@ -448,11 +448,8 @@ function rcRenderList(){
   var wrap=document.getElementById('rcClientList');
   wrap.innerHTML='';
 
-  var totalRetainer=rcClients.reduce(function(sum,c){return sum+(c.amount||0);},0);
   var summaryCount=document.getElementById('rcSummaryCount');
-  var summaryTotal=document.getElementById('rcSummaryTotal');
-  if(summaryCount)summaryCount.textContent=rcClients.length+' client'+(rcClients.length===1?'':'s');
-  if(summaryTotal)summaryTotal.textContent='$'+totalRetainer.toLocaleString();
+  if(summaryCount)summaryCount.textContent=rcClients.length;
 
   if(!rcClients.length){
     wrap.appendChild(rcEl('div',{class:'rc-empty',text:'No clients yet. Tap + New Client.'}));
@@ -463,13 +460,8 @@ function rcRenderList(){
 
     var card=rcEl('div',{class:'rc-client-card'});
     var top=rcEl('div',{class:'rc-client-top'});
-    var nameRow=rcEl('div',{},[
-      rcEl('span',{class:'rc-client-name',text:c.name||'Unnamed'}),
-      rcEl('span',{class:'rc-client-amount',text:'$'+(c.amount||0).toLocaleString()+'/mo'})
-    ]);
-    nameRow.style.display='flex';nameRow.style.alignItems='baseline';nameRow.style.gap='8px';nameRow.style.flexWrap='wrap';
     var left=rcEl('div',{},[
-      nameRow,
+      rcEl('span',{class:'rc-client-name',text:c.name||'Unnamed'}),
       rcEl('div',{class:'rc-client-sub',text:rcMonthLabel()+' — '+prog.points+'/'+prog.maxPoints+' deliverable points'})
     ]);
     var pctEl=rcEl('div',{text:prog.pct+'%'});
